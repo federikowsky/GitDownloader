@@ -22,39 +22,45 @@ class GitDownloader:
         self.__dwnld_dest = dwnld_dest
         self.__file_list = file_list
         self.__recursive = recursive
-        self.__dir_tasks = []
-        self.__file_tasks = []
+        self.__tasks = []
         self.col = {"directory": colorama.Fore.RED, "file": colorama.Fore.MAGENTA}
         self.__session = None
         self.__sem = None
 
-    async def download_folder(self, items: list) -> str | None:
+    async def download_folder(self, items: list, dwnld_dest) -> None:
+        tasks = []
         for item in items:
             item_url, item_name, item_type = item["path"], item["name"], item["contentType"]
 
             if item_type == 'directory' and self.__recursive:
-                os.makedirs(os.path.join(dwnld_dest, item_name), exist_ok=True)
+                item_path = os.path.join(dwnld_dest, item_name)
+                os.makedirs(item_path, exist_ok=True)
                 print(f"{colorama.Fore.CYAN}[/] Following Dir: {item_url} {colorama.Fore.RESET}")
-                self.__dir_tasks.append(asyncio.create_task(self.fetch_file(self.__git_permalink + item_url, dwnld_dest)))
+                tasks.append(self.fetch_file(self.__git_permalink + item_url, item_path))
             elif item_type == 'file' and (self.__file_list is None or item_name in self.__file_list):
-                self.__file_tasks.append(asyncio.create_task(self.download_file(self.__git_permalink + item_url, os.path.join(dwnld_dest, item_name))))
+                tasks.append(self.download_file(self.__git_permalink + item_url, os.path.join(dwnld_dest, item_name)))
             else:
                 print(f"{self.col[item_type]}[!] Skipping {item_type.capitalize()}: {item_url} {colorama.Fore.RESET}")
-        await asyncio.gather(*self.__file_tasks)
+        await asyncio.gather(*tasks)
 
     async def download_file(self, url: str, destination: str) -> None:
         response = await self.fetch_file_data(url)
         data = json.loads(response)
         url_with_data = data["payload"]["blob"]["rawBlobUrl"]
         
-        response_data = await self.fetch_file_data(url_with_data)
-        data_content = response_data.encode('utf-8')
-
+        data_content = await self.fetch_file_raw_data(url_with_data)
+        
         async with aiofiles.open(destination, 'wb') as file:
             await file.write(data_content)
             print(f"{colorama.Fore.GREEN}[+] Downloaded File: {destination} {colorama.Fore.RESET}")
 
-
+    async def fetch_file_raw_data(self, url: str) -> aiohttp.ClientResponse:
+        async with self.__sem:
+            async with self.__session.get(url) as response:
+                response.raise_for_status()
+                res = await response.content.read()
+                return res
+            
     async def fetch_file_data(self, url: str) -> aiohttp.ClientResponse:
         async with self.__sem:
             async with self.__session.get(url) as response:
@@ -68,7 +74,7 @@ class GitDownloader:
             items = json.loads(response)
             items = items["payload"]["tree"]["items"]
 
-            await self.download_folder(items)
+            await self.download_folder(items, dwnld_dest)
                                     
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -76,19 +82,17 @@ class GitDownloader:
             elif e.status == 429:
                 print(f"{colorama.Fore.YELLOW} [!!] Too many requests, retrying after {e.headers.get('Retry-After')} seconds. {colorama.Fore.RESET}")
                 await asyncio.sleep(int(e.headers.get('Retry-After', 5)))
-                self.__dir_tasks.append(asyncio.create_task(self.fetch_file(api_url, dwnld_dest)))
-        # self.__dir_tasks.append(asyncio.create_task(self.fetch_file(self.__git_permalink + self.__git_path, self.__dwnld_dest)))
-        await asyncio.gather(*self.__dir_tasks)        
+                self.__tasks.append(self.fetch_file(api_url, dwnld_dest))
+                
         
     async def main(self):
         self.__git_permalink = self.__git_permalink.replace(self.__git_path, "")
         self.__session = aiohttp.ClientSession()
-        self.__sem = asyncio.Semaphore(20)
+        self.__sem = asyncio.Semaphore(10)
         
         async with self.__session:
             await self.fetch_file(self.__git_permalink + self.__git_path, self.__dwnld_dest)
-            # self.__dir_tasks.append(self.fetch_file(self.__git_permalink + self.__git_path, self.__dwnld_dest))
-            # await asyncio.gather(*self.__dir_tasks)
+            await asyncio.gather(*self.__tasks)
             
     def run(self):
         try:
@@ -130,3 +134,7 @@ if __name__ == "__main__":
     
 # exmaple:
 # python GitDownloader.py -plink https://github.com/codebasics/py/tree/801ee0ee4d342fd22b89915dc0c4864250a0ec10/ML/3_gradient_descent -path ML/3_gradient_descent -dest 3_gradient_descent/tutorial -r 0
+
+# python GitDownloader.py -plink https://github.com/codebasics/py/tree/801ee0ee4d342fd22b89915dc0c4864250a0ec10/ML -path ML -d prova
+
+# python GitDownloader.py -plink https://github.com/curl/curl/tree/8e2d7b9fa4264b94bd1d9838c84d16e4cd33fbea/tests -path tests -d curl
