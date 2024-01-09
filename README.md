@@ -59,6 +59,9 @@ python GitDownloader.py -plink https://github.com/username/repository/tree/commi
 - [Colorama](https://pypi.org/project/colorama/) library
 - [Aiofile](https://pypi.org/project/aiofiles/) library
 
+## License
+This project is distributed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+
 ## Features
 
 - Efficiently downloads files concurrently using asynchronous programming.
