@@ -28,7 +28,7 @@ class GitDownloader:
         self.__colors = {"directory": colorama.Fore.RED, "file": colorama.Fore.MAGENTA}
         self.__session = None
         self.__sem = None
-        self.N = N
+        self.__N = N
 
     async def download_folder(self, items: list, dwnld_dest: str) -> None:
         tasks = []
@@ -39,43 +39,37 @@ class GitDownloader:
                 item_path = os.path.join(dwnld_dest, item_name)
                 os.makedirs(item_path, exist_ok=True)
                 print(f"{colorama.Fore.CYAN}[/] Following Dir: {item_url} {colorama.Fore.RESET}")
-                tasks.append(self.fetch_file(self.__git_permalink + item_url, item_path))
+                tasks.append(self.fetch_file(os.path.join(self.__git_permalink, item_url), item_path))
             elif item_type == 'file' and (self.__file_list is None or item_name in self.__file_list):
-                tasks.append(self.download_file(self.__git_permalink + item_url, os.path.join(dwnld_dest, item_name)))
+                tasks.append(self.download_file(os.path.join(self.__git_permalink, item_url), os.path.join(dwnld_dest, item_name)))
             else:
                 print(f"{self.__colors[item_type]}[!] Skipping {item_type.capitalize()}: {item_url} {colorama.Fore.RESET}")
         await asyncio.gather(*tasks)
 
     async def download_file(self, url: str, destination: str) -> None:
-        url_with_data = url.replace("/tree/", "/raw/")
-        data_content = await self.fetch_file_raw_data(url_with_data)
+        raw_url = url.replace("/tree/", "/raw/")
+        data = await self.fetch_file_data(raw_url)
         
         async with aiofiles.open(destination, 'wb') as file:
-            await file.write(data_content)
+            await file.write(data)
             print(f"{colorama.Fore.GREEN}[+] Downloaded File: {destination} {colorama.Fore.RESET}")
 
-    async def fetch_file_raw_data(self, url: str) -> aiohttp.ClientResponse:
+    async def fetch_file_data(self, url: str) -> bytes:
         async with self.__sem:
             async with self.__session.get(url) as response:
                 response.raise_for_status()
                 res = await response.content.read()
                 return res
-            
-    async def fetch_file_data(self, url: str) -> aiohttp.ClientResponse:
-        async with self.__sem:
-            async with self.__session.get(url) as response:
-                response.raise_for_status()
-                res = await response.text()
-                return res
 
     async def fetch_file(self, api_url: str, dwnld_dest: str) -> None:
         try:
             response = await self.fetch_file_data(api_url)
-            items = json.loads(response)
+            data = response.decode("utf-8")
+            items = json.loads(data)
             items = items["payload"]["tree"]["items"]
 
             await self.download_folder(items, dwnld_dest)
-
+ 
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 print(f"{colorama.Fore.YELLOW}[!] 404: url you're looking for may not exist or repo could be private. {e.request_info.url} {colorama.Fore.RESET}")
@@ -86,7 +80,7 @@ class GitDownloader:
     async def main(self):
         self.__git_permalink = self.__git_permalink.replace(self.__git_path, "")
         self.__session = aiohttp.ClientSession()
-        self.__sem = asyncio.Semaphore(self.N)
+        self.__sem = asyncio.Semaphore(self.__N)
         
         async with self.__session:
             await self.fetch_file(self.__git_permalink + self.__git_path, self.__dwnld_dest)
