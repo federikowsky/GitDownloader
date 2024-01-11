@@ -97,12 +97,12 @@ class GitDownloader:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Download a folder from a GitHub repository.')
-    parser.add_argument('--permalink', "-plink", required=True, type=str, help='The permalink of the GitHub repository.')
-    parser.add_argument('--path', '-path', required=True, type=str, help='The path of the folder to download.')
+    parser.add_argument('--permalink', "-pl", required=True, type=str, help='The permalink of the GitHub repository.')
+    parser.add_argument('--path', '-p', required=True, type=str, help='The path of the folder to download.')
     parser.add_argument('--destination', '-dst', default='./gitdownload', type=str, help='The destination folder.')
     parser.add_argument('--recursive', '-r', type=int, default=1, help='1 if you want to download the folder recursively, 0 otherwise.')
     parser.add_argument('--file_list', '-l', type=str, default=None, nargs='+', help='The list of files to download.')
-    parser.add_argument('--max_requests', '-maxreq', type=int, default=200, help='max number of requests to send at the same time.')
+    parser.add_argument('--max_requests', '-mr', type=int, default=100, help='max number of requests to send at the same time.')
     args = parser.parse_args()
     
     git_permalink = args.permalink

@@ -31,18 +31,18 @@ Use the following command-line arguments to customize your download:
 ```bash
 python GitDownloader.py --permalink <repository_permalink> --path <folder_path> [--destination <download_destination>] [--recursive <1_or_0>] [--file_list <file1 file2 ...>] [--max_requests <max_concurrent_requests>]
 
-- `--permalink` (`-plink`): The permalink of the GitHub sub folder.
-- `--path` (`-path`): The path of the sub folder to download.
+- `--permalink` (`-pl`): The permalink of the GitHub sub folder.
+- `--path` (`-p`): The path of the sub folder to download.
 - `--destination` (`-dst`): The destination folder path (default: ./gitdownload).
 - `--recursive` (`-r`): 1 if you want to download the folder recursively, 0 otherwise (default: 1).
 - `--file_list` (`-l`): The list of files to download (default: None).
-- `--max_requests` (`-maxreq`): Max number of requests to send at the same time (default: 200).
+- `--max_requests` (`-mr`): Max number of requests to send at the same time (default: 100).
 ```
 
 ### Example
 
 ```bash
-python GitDownloader.py -plink https://github.com/username/repository/tree/commit_hash/path/to/folder -path path/to/folder --destination ./download_folder --recursive 1 --file_list file1.txt file2.txt --max_requests 50
+python GitDownloader.py -pl https://github.com/username/repository/tree/commit_hash/path/to/folder -p path/to/folder -dst ./download_folder -r 1 -l file1.txt file2.txt -mr 50
 ```
 
 ### How to get permalink and path
