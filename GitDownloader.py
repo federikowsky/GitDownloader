@@ -8,7 +8,6 @@ import aiofiles
 import asyncio
 import colorama
 
-
 class GitDownloader:
     def __init__(
             self, 
@@ -17,6 +16,7 @@ class GitDownloader:
             dwnld_dest: str, 
             file_list: list, 
             recursive: bool ,
+            symlink: bool,
             N: int,
         ) -> None:
         
@@ -25,7 +25,8 @@ class GitDownloader:
         self.__dwnld_dest = dwnld_dest
         self.__file_list = file_list
         self.__recursive = recursive
-        self.__colors = {"directory": colorama.Fore.RED, "file": colorama.Fore.MAGENTA}
+        self.__symlink = symlink
+        self.__colors = {"directory": "\33[38;5;172m", "submodule": "\33[38;5;39m", "symlink_file": "\33[38;5;131m", "file": colorama.Fore.MAGENTA, "symlink_directory": colorama.Fore.YELLOW}
         self.__session = None
         self.__sem = None
         self.__N = N
@@ -40,7 +41,7 @@ class GitDownloader:
                 os.makedirs(item_path, exist_ok=True)
                 print(f"{colorama.Fore.CYAN}[/] Following Dir: {item_url} {colorama.Fore.RESET}")
                 tasks.append(self.fetch_file(os.path.join(self.__git_permalink, item_url), item_path))
-            elif item_type == 'file' and (self.__file_list is None or item_name in self.__file_list):
+            elif (item_type == 'file' or ((item_type == 'symlink_directory' or item_type == "symlink_file") and self.__symlink)) and (self.__file_list is None or item_name in self.__file_list):
                 tasks.append(self.download_file(os.path.join(self.__git_permalink, item_url), os.path.join(dwnld_dest, item_name)))
             else:
                 print(f"{self.__colors[item_type]}[!] Skipping {item_type.capitalize()}: {item_url} {colorama.Fore.RESET}")
@@ -72,9 +73,9 @@ class GitDownloader:
  
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
-                print(f"{colorama.Fore.YELLOW}[!] 404: url you're looking for may not exist or repo could be private. {e.request_info.url} {colorama.Fore.RESET}")
+                print(f"{colorama.Fore.RED}[!] 404: url you're looking for may not exist or repo could be private. {e.request_info.url} {colorama.Fore.RESET}")
             elif e.status == 429:
-                print(f"{colorama.Fore.YELLOW} [!!] Too many requests, retrying after {e.headers.get('Retry-After')} seconds. {colorama.Fore.RESET}")
+                print(f"{colorama.Fore.RED} [!!] Too many requests, retrying after {e.headers.get('Retry-After')} seconds. {colorama.Fore.RESET}")
                 exit(1)
                 
     async def main(self):
@@ -89,7 +90,7 @@ class GitDownloader:
         try:
             asyncio.run(self.main())
         except KeyboardInterrupt:
-            print("KeyboardInterrupt")
+            print("\nKeyboardInterrupt")
             exit(127)
         except Exception as e:
             print(f"{traceback.format_exc()}\n\nError: {type(e).__name__}\nMessage: {str(e)}")
@@ -102,6 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('--destination', '-dst', default='./gitdownload', type=str, help='The destination folder.')
     parser.add_argument('--recursive', '-r', type=int, default=1, help='1 if you want to download the folder recursively, 0 otherwise.')
     parser.add_argument('--file_list', '-l', type=str, default=None, nargs='+', help='The list of files to download.')
+    parser.add_argument('--symlink', '-sml', type=int, default=1, help='1 if you want to follow the symlink, 0 otherwise.')
     parser.add_argument('--max_requests', '-mr', type=int, default=100, help='max number of requests to send at the same time.')
     args = parser.parse_args()
     
@@ -111,6 +113,7 @@ if __name__ == "__main__":
     file_list = args.file_list
     recursive = args.recursive
     requests = args.max_requests
+    symlink = args.symlink
     
     if not os.path.exists(dwnld_dest):
         os.mkdir(dwnld_dest, mode=0o775)
@@ -121,6 +124,7 @@ if __name__ == "__main__":
         dwnld_dest=dwnld_dest,
         file_list=file_list,
         recursive=recursive,
+        symlink=symlink,
         N=requests,
     )
     
