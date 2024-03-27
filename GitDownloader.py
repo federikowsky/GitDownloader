@@ -1,12 +1,14 @@
 import os
+import re
 import json
 import traceback
 import argparse
+import asyncio
 
 import aiohttp
 import aiofiles
-import asyncio
 import colorama
+
 
 class GitDownloader:
     def __init__(
@@ -63,10 +65,13 @@ class GitDownloader:
                 return res
 
     async def fetch_file(self, api_url: str, dwnld_dest: str) -> None:
+        regex = r'<script type="application/json" data-target="react-app.embeddedData">(.*?)</script>'
         try:
             response = await self.fetch_file_data(api_url)
             data = response.decode("utf-8")
-            items = json.loads(data)
+            match = re.search(regex, data, re.DOTALL)
+            
+            items = json.loads(match.group(1))
             items = items["payload"]["tree"]["items"]
 
             await self.download_folder(items, dwnld_dest)
